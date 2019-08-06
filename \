@@ -80,8 +80,7 @@ class RatingRank(PointRank):
         return super().ranks()
 
 class RankAlgorithm(Rank):
-    def __init__(self):
-        pass
+    pass
 
 class PointsPerGameRank(RankAlgorithm):
     """
@@ -105,7 +104,7 @@ class PointsPerGameRank(RankAlgorithm):
 
 class PageRank(RankAlgorithm):
     def __init__(self):
-        self._data = np.array([], dtype=int)
+        self._data = np.array([])
         self._ids = defaultdict(list)
 
     def update(self, winner, winner_points, loser, loser_points):
@@ -120,6 +119,8 @@ class PageRank(RankAlgorithm):
 
         self._data[winner_id][loser_id] += winner_points
         self._data[loser_id][winner_id] += loser_points
+
+    def
 
 
 
