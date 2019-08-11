@@ -12,7 +12,7 @@ class Rank:
     def update(self, *args):
         raise NotImplemented
 
-    def ranks(self):
+    def ranks(self, *args, **kwargs):
         raise NotImplemented
 
     def reset(self):
@@ -30,18 +30,19 @@ class PointRank(Rank):
     """
     def __init__(self):
         self._dirty = False
-        self.ranks = []
+        self._ranks = []
+        super().__init__()
 
     def update(self, player1, player1_points, player2, player2_points):
         if None not in [player1, player2]:
             super().update(player1, player1_points, player2, player2_points)
         self._dirty = True
 
-    def ranks(self):
+    def ranks(self, *args, **kwargs):
         if self._dirty:
-            self.ranks = super().ranks()
+            self._ranks = super().ranks(*args, **kwargs)
         self._dirty = False
-        return self.ranks
+        return self._ranks
 
 class WinRank(PointRank):
     """
@@ -57,13 +58,14 @@ class RatingRank(PointRank):
     """
     def __init__(self):
         self.record = defaultdict(list)
+        super().__init__()
 
     def update(self, name, score, reporter):
         super().update(None, 0, None, 0)
         self.record[reporter].append((name,score))
         # Super called with to indicate not to use data
 
-    def ranks(self):
+    def ranks(self, *args, **kwargs):
         def normalize(x):
             return 8 * (x - 0.5) ** 3 + 0.5
         if self._dirty:
@@ -77,7 +79,7 @@ class RatingRank(PointRank):
                     score1 = normalize((result1 - min_score) / (max_score - min_score) * .8 + .1)
                     score2 = normalize((result2 - min_score) / (max_score - min_score) * .8 + .1)
                     super().update(name1, score1, name2, score2)
-        return super().ranks()
+        return super().ranks(*args, **kwargs)
 
 class RankAlgorithm(Rank):
     def __init__(self):
@@ -99,8 +101,8 @@ class PointsPerGameRank(RankAlgorithm):
 
     def ranks(self):
         raw_ranks = [(name, points/ games) for name, (points, games) in self._data.items()]
-        self.ranks = sorted(raw_ranks, key = lambda a: a[1], reverse = True)
-        return self.ranks
+        self._ranks = sorted(raw_ranks, key = lambda a: a[1], reverse = True)
+        return self._ranks
 
 
 class PageRank(RankAlgorithm):
@@ -121,7 +123,24 @@ class PageRank(RankAlgorithm):
         self._data[winner_id][loser_id] += winner_points
         self._data[loser_id][winner_id] += loser_points
 
+    def ranks(self, eps=1.0e-8, d=0.85):
+        N = len(self._data)
+        fill_func = lambda i,j: self._data[i][j] / (self._data[i][j] + self._data[j][i] + 0.01)
+        M = np.fromfunction(np.vectorize(fill_func), (N, N), dtype=int)
 
+        np.fill_diagonal(M, 0.01)
+        M = M / M.sum(axis=0)
+
+        v = np.random.rand(N, 1)
+        v = v / np.linalg.norm(v, 1)
+        last_v = np.ones((N, 1), dtype=np.float32) * 100
+
+        while np.linalg.norm(v - last_v, 2) > eps:
+            last_v = v
+            v = d * np.matmul(M, v) + (1 - d) / N
+        v = v.transpose()[0]
+        scores = sorted(zip(self._ids, v), key = lambda a: a[1], reverse = True)
+        return scores
 
 class LadderRank(RankAlgorithm):
     pass
@@ -130,5 +149,8 @@ class ELORank(RankAlgorithm):
     pass
 
 class PPGRatingTRanks(RatingRank, PointsPerGameRank):
+    pass
+
+class WinPageRank(WinRank, PageRank):
     pass
 
