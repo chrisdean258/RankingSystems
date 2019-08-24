@@ -143,7 +143,24 @@ class PageRank(RankAlgorithm):
         return scores
 
 class LadderRank(RankAlgorithm):
-    pass
+    def __init__(self):
+        self._ranks = []
+
+    def update(self, winner, loser):
+
+        find_in_list = lambda a, l: l.index(a) if a in l else (len(l), l.append(a))[0]
+        winner_rank = find_in_list(winner, self.ranks)
+        loser_rank = find_in_list(loser, self.ranks)
+
+        if loser_rank > winner_rank:
+            new_rank = (loser_rank + winner_rank) // 2
+            self.ranks.remove(winner_rank)
+            self.ranks.insert(winner, new_rank)
+
+    def ranks(self):
+        return self.ranks
+
+
 
 class ELORank(RankAlgorithm):
     pass
