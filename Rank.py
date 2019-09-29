@@ -4,6 +4,7 @@ from collections import defaultdict
 from itertools import combinations
 import numpy as np
 
+
 class Rank:
     """ This class defines an interface for all Ranking systems """
     def __init__(self):
@@ -24,10 +25,9 @@ class Rank:
     def __repr__(self):
         return repr(self.rank)
 
+
 class PointRank(Rank):
-    """
-    This class defines a ranking system based on points
-    """
+    """ This class defines a ranking system based on points """
     def __init__(self):
         self._dirty = False
         self._ranks = []
@@ -44,17 +44,18 @@ class PointRank(Rank):
         self._dirty = False
         return self._ranks
 
+
 class WinRank(PointRank):
-    """
-    This class defines a ranking system based on wins and losses
-    """
+    """ This class defines a ranking system based on wins and losses """
     def update(self, winner, loser):
         super().update(winner, 1, loser, 0)
+
 
 class RatingRank(PointRank):
     """
     This class defines a ranking system off comparison ratings
-    This is essentially a score ranking but scores are normalized based on reporter
+    This is essentially a score ranking but
+    scores are normalized based on reporter
     """
     def __init__(self):
         self.record = defaultdict(list)
@@ -62,7 +63,7 @@ class RatingRank(PointRank):
 
     def update(self, name, score, reporter):
         super().update(None, 0, None, 0)
-        self.record[reporter].append((name,score))
+        self.record[reporter].append((name, score))
         # Super called with to indicate not to use data
 
     def ranks(self, *args, **kwargs):
@@ -71,24 +72,24 @@ class RatingRank(PointRank):
         if self._dirty:
             super().reset()
             for reporter, results in self.record.items():
-                max_score = max(a[1] for a in results)
-                min_score = max(a[1] for a in results)
-                if max_score == min_score:
+                max_s = max(a[1] for a in results)
+                min_s = min(a[1] for a in results)
+                if max_s == min_s:
                     continue
-                for (name1, result1), (name2, result2) in combinations(results, 2):
-                    score1 = normalize((result1 - min_score) / (max_score - min_score) * .8 + .1)
-                    score2 = normalize((result2 - min_score) / (max_score - min_score) * .8 + .1)
-                    super().update(name1, score1, name2, score2)
+                for (n1, r1), (n2, r2) in combinations(results, 2):
+                    s1 = normalize((r1 - min_s) / (max_s - min_s) * .8 + .1)
+                    s2 = normalize((r2 - min_s) / (max_s - min_s) * .8 + .1)
+                    super().update(n1, s1, n2, s2)
         return super().ranks(*args, **kwargs)
+
 
 class RankAlgorithm(Rank):
     def __init__(self):
         pass
 
+
 class PointsPerGameRank(RankAlgorithm):
-    """
-    Class Calculates rankings based on points per game
-    """
+    """ Class Calculates rankings based on points per game """
     def __init__(self):
         self._data = {}
         super().__init__()
@@ -100,12 +101,23 @@ class PointsPerGameRank(RankAlgorithm):
         self._data[player2] = (total_points + player2_points, total_games + 1)
 
     def ranks(self):
-        raw_ranks = [(name, points/ games) for name, (points, games) in self._data.items()]
-        self._ranks = sorted(raw_ranks, key = lambda a: a[1], reverse = True)
+        raw_ranks = [(name, points / games)
+                     for name, (points, games) in self._data.items()]
+        self._ranks = sorted(raw_ranks, key=lambda a: a[1], reverse=True)
         return self._ranks
 
 
 class PageRank(RankAlgorithm):
+    """
+    Page rank builds a graph based on wins and losses and run the page rank
+    algorithm to find the most significant nodes. This fairly elegantly figures
+    out loops based on extraneous information. Works best for connected groups
+    although does an ok job for semi isolated populations if there are at least
+    a few connections. The d parameter is roughly 1 - the minimum chance that
+    in any random game one player will beat another. In the literature this
+    number is usually 0.85 but for competitive tournaments this should probably
+    be about 0.95 - 0.99.
+    """
     def __init__(self):
         self._data = np.array([], dtype=int)
         self._ids = defaultdict(list)
@@ -113,19 +125,22 @@ class PageRank(RankAlgorithm):
     def update(self, winner, winner_points, loser, loser_points):
         old_len = len(self._ids)
         winner_id = self._ids[winner] = self._ids.get(winner, len(self._ids))
-        loser_id  = self._ids[loser]  = self._ids.get(loser,  len(self._ids))
+        loser_id = self._ids[loser] = self._ids.get(loser,  len(self._ids))
         N = len(self._ids)
 
         if old_len < N:
-            fill_func = lambda i, j: self._data[i][j] if i < old_len and j < old_len else 0
-            self._data = np.fromfunction(np.vectorize(fill_func), (N, N), dtype=int)
+            new_data = np.zeros((N, N))
+            new_data[:old_len, :old_len] += self._data
+            self._data = new_data
 
         self._data[winner_id][loser_id] += winner_points
         self._data[loser_id][winner_id] += loser_points
 
     def ranks(self, eps=1.0e-8, d=0.85):
         N = len(self._data)
-        fill_func = lambda i,j: self._data[i][j] / (self._data[i][j] + self._data[j][i] + 0.01)
+
+        def fill_func(i, j, e=0.01):
+            return self._data[i][j] / (self._data[i][j] + self._data[j][i] + e)
         M = np.fromfunction(np.vectorize(fill_func), (N, N), dtype=int)
 
         np.fill_diagonal(M, 0.01)
@@ -139,16 +154,26 @@ class PageRank(RankAlgorithm):
             last_v = v
             v = d * np.matmul(M, v) + (1 - d) / N
         v = v.transpose()[0]
-        scores = sorted(zip(self._ids, v), key = lambda a: a[1], reverse = True)
+        scores = sorted(zip(self._ids, v), key=lambda a: a[1], reverse=True)
         return scores
 
+
 class LadderRank(RankAlgorithm):
+    """
+    Ladder Rank is a dynamic ranking system where when any player beats a
+    player of higher rank they move up half the distance to that player.
+    Its benefits are that players who play a lot are more likely to move up and
+    no player is discouraged from palying a lower player
+    """
     def __init__(self):
         self._ranks = []
 
     def update(self, winner, loser):
-
-        find_in_list = lambda a, l: l.index(a) if a in l else (len(l), l.append(a))[0]
+        def find_in_list(a, l):
+            if a in l:
+                return l.index(a)
+            l.append(a)
+            return len(l)-1
         winner_rank = find_in_list(winner, self.ranks)
         loser_rank = find_in_list(loser, self.ranks)
 
@@ -161,13 +186,9 @@ class LadderRank(RankAlgorithm):
         return self.ranks
 
 
-
-class ELORank(RankAlgorithm):
-    pass
-
 class PPGRatingTRanks(RatingRank, PointsPerGameRank):
     pass
 
+
 class WinPageRank(WinRank, PageRank):
     pass
-
