@@ -19,6 +19,10 @@ class Rank:
     def reset(self):
         raise NotImplemented
 
+    def update_iter(self, iterable):
+        for item in iterable:
+            self.update(*item)
+
     def __str__(self):
         return str(self.rank)
 
