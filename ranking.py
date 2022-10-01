@@ -5,19 +5,20 @@ from itertools import combinations
 import numpy as np
 
 
-class Rank:
+class Record:
     """ This class defines an interface for all Ranking systems """
+
     def __init__(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def update(self, *args):
-        raise NotImplemented
+        raise NotImplementedError
 
     def ranks(self, *args, **kwargs):
-        raise NotImplemented
+        raise NotImplementedError
 
     def reset(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def update_iter(self, iterable):
         for item in iterable:
@@ -30,8 +31,9 @@ class Rank:
         return repr(self.rank)
 
 
-class PointRank(Rank):
+class PointRecord(Record):
     """ This class defines a ranking system based on points """
+
     def __init__(self):
         self._dirty = False
         self._ranks = []
@@ -49,18 +51,20 @@ class PointRank(Rank):
         return self._ranks
 
 
-class WinRank(PointRank):
+class WinRecord(PointRecord):
     """ This class defines a ranking system based on wins and losses """
+
     def update(self, winner, loser):
         super().update(winner, 1, loser, 0)
 
 
-class RatingRank(PointRank):
+class RatingRecord(PointRecord):
     """
     This class defines a ranking system off comparison ratings
     This is essentially a score ranking but
     scores are normalized based on reporter
     """
+
     def __init__(self):
         self.record = defaultdict(list)
         super().__init__()
@@ -87,13 +91,14 @@ class RatingRank(PointRank):
         return super().ranks(*args, **kwargs)
 
 
-class RankAlgorithm(Rank):
+class RankAlgorithm(Record):
     def __init__(self):
         pass
 
 
 class PointsPerGameRank(RankAlgorithm):
     """ Class Calculates rankings based on points per game """
+
     def __init__(self):
         self._data = {}
         super().__init__()
@@ -122,6 +127,7 @@ class PageRank(RankAlgorithm):
     number is usually 0.85 but for competitive tournaments this should probably
     be about 0.95 - 0.99.
     """
+
     def __init__(self):
         self._data = np.array([], dtype=int)
         self._ids = defaultdict(list)
@@ -129,7 +135,7 @@ class PageRank(RankAlgorithm):
     def update(self, winner, winner_points, loser, loser_points):
         old_len = len(self._ids)
         winner_id = self._ids[winner] = self._ids.get(winner, len(self._ids))
-        loser_id = self._ids[loser] = self._ids.get(loser,  len(self._ids))
+        loser_id = self._ids[loser] = self._ids.get(loser, len(self._ids))
         N = len(self._ids)
 
         if old_len < N:
@@ -169,6 +175,7 @@ class LadderRank(RankAlgorithm):
     Its benefits are that players who play a lot are more likely to move up and
     no player is discouraged from palying a lower player
     """
+
     def __init__(self):
         self._ranks = []
 
@@ -177,7 +184,7 @@ class LadderRank(RankAlgorithm):
             if a in l:
                 return l.index(a)
             l.append(a)
-            return len(l)-1
+            return len(l) - 1
         winner_rank = find_in_list(winner, self.ranks)
         loser_rank = find_in_list(loser, self.ranks)
 
@@ -190,9 +197,7 @@ class LadderRank(RankAlgorithm):
         return self.ranks
 
 
-class PPGRatingTRanks(RatingRank, PointsPerGameRank):
-    pass
-
-
-class WinPageRank(WinRank, PageRank):
-    pass
+def rank(record, rank_alg):
+    class ranking(record, rank_alg):
+        pass
+    return ranking
